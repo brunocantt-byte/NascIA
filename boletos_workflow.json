@@ -1,0 +1,551 @@
+{
+  "name": "NascIA - Contas A Pagar",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "75057d02-1b13-40b4-b0dc-2edb140f154e",
+      "name": "Ao clicar em 'Executar fluxo de trabalho'",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -800,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "C:\\CAMINHO\\PARA\\SUA\\PASTA\\DE\\BOLETOS\\*.pdf",
+        "options": {}
+      },
+      "id": "3eee7320-4c34-4047-8246-90593468ce8f",
+      "name": "Ler PDFs da pasta",
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1,
+      "position": [
+        -576,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "id": "753ed7f7-71ff-4cae-b565-473f7804ca51",
+      "name": "Loop - um PDF por vez",
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -352,
+        128
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "324af811-7663-49e0-9458-26fb335293ec",
+      "name": "Extrair texto do PDF",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "f96f60c8-f5f0-4a5d-b722-d609bf2486f6",
+      "name": "Modelo Google (extração)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        176,
+        240
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PuBaZr9pegYpZlOG",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Você é um extrator de dados de boletos, guias de recolhimento (incluindo FGTS) e documentos de cobrança brasileiros.\nAnalise o texto abaixo e devolva APENAS um JSON válido, sem texto adicional, sem markdown, no formato:\n\n{\n  \"data_vencimento\": \"DD/MM/AAAA ou null\",\n  \"nome_fornecedor\": \"nome de quem RECEBE o pagamento (cedente/beneficiário), ou órgão arrecadador se for guia FGTS/tributo\",\n  \"valor\": \"0000.00, ou null\",\n  \"empresa_pagadora\": \"nome de quem deve PAGAR o boleto/guia\",\n  \"cnpj_pagador\": \"SOMENTE dígitos, EXATAMENTE 14 números, ou 11 se for CPF, ou null\",\n  \"codigo_barras\": \"a linha digitável do boleto/guia, SOMENTE dígitos, sem pontos/espaços. Geralmente 44, 47 ou 48 dígitos. Ou null se não encontrar\",\n  \"pix_copia_cola\": \"o código PIX Copia e Cola, se existir no documento. É uma sequência longa de letras e números, geralmente começando com '00020126' ou similar. Copie EXATAMENTE como aparece, sem remover nenhum caractere. Ou null se não houver\"\n}\n\nCOMO IDENTIFICAR O FORNECEDOR (nome_fornecedor) — CAMPO CRÍTICO, NUNCA DEIXE EM BRANCO SE HOUVER QUALQUER INDÍCIO NO TEXTO:\n- Em boletos: procure \"Cedente\", \"Beneficiário\", ou o nome/razão social próximo ao logo do banco\n- Em guias FGTS/tributos: procure o órgão arrecadador (ex: \"Caixa Econômica Federal\", \"Receita Federal\", \"FGTS\") ou a razão social do empregador que está recolhendo\nSó use null se tiver certeza absoluta de que não há nenhum nome identificável.\n\nCOMO IDENTIFICAR O PAGADOR (empresa_pagadora):\nProcure \"Sacado\", \"Pagador\", \"Sacado/Pagador\", ou nos casos de FGTS o nome da empresa/empregador que está recolhendo a guia.\n\nSOBRE O PIX COPIA E COLA:\n- É uma string de texto, não uma imagem — se estiver presente no documento como texto, extraia com precisão total, sem cortar nem adicionar caracteres\n- Costuma aparecer perto de um QR Code, rotulado como \"PIX Copia e Cola\", \"Código PIX\" ou similar\n\nREGRAS OBRIGATÓRIAS:\n- NUNCA invente ou estime uma data. Se não encontrar a data de vencimento claramente escrita, use null.\n- NUNCA use a data de hoje como vencimento.\n- CNPJ/CPF deve ter exatamente 14 ou 11 dígitos. Remova formatação (pontos, barra, traço), mas mantenha todos os dígitos. Se não tiver certeza do número completo, use null.\n- Para código de barras e PIX: copie exatamente os caracteres como aparecem. Se não tiver certeza, use null em vez de arriscar.\n- Fornecedor e pagador NUNCA podem ser o mesmo nome — se a IA extrair o mesmo nome pros dois campos, revise.\n- Não repita ou duplique dados.\n\nTexto do documento:\n{{ $json.text }}"
+      },
+      "id": "6bb13efa-2d52-4b32-a898-bdea163e8a2f",
+      "name": "Extrair campos do boleto (IA)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        96,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "function formatarDocumento(numero) {\n  if (!numero) return null;\n  const digitos = numero.replace(/\\D/g, '');\n  if (digitos.length === 14) {\n    return digitos.replace(/^(\\d{2})(\\d{3})(\\d{3})(\\d{4})(\\d{2})$/, '$1.$2.$3/$4-$5');\n  }\n  if (digitos.length === 11) {\n    return digitos.replace(/^(\\d{3})(\\d{3})(\\d{3})(\\d{2})$/, '$1.$2.$3-$4');\n  }\n  return numero;\n}\n\nfunction formatarValorNumero(valor) {\n  if (!valor) return null;\n  const numero = parseFloat(String(valor).replace(',', '.'));\n  return isNaN(numero) ? null : numero;\n}\n\nfunction validarCNPJ(cnpj) {\n  if (!cnpj) return null;\n  const d = cnpj.replace(/\\D/g, '');\n  if (d.length !== 14 || /^(\\d)\\1{13}$/.test(d)) return false;\n  const calc = (base, pesos) => {\n    let soma = 0;\n    for (let i = 0; i < pesos.length; i++) soma += parseInt(base[i]) * pesos[i];\n    const resto = soma % 11;\n    return resto < 2 ? 0 : 11 - resto;\n  };\n  const p1 = [5,4,3,2,9,8,7,6,5,4,3,2];\n  const p2 = [6,5,4,3,2,9,8,7,6,5,4,3,2];\n  const dv1 = calc(d.substring(0,12), p1);\n  const dv2 = calc(d.substring(0,12) + dv1, p2);\n  return d === d.substring(0,12) + dv1.toString() + dv2.toString();\n}\n\nfunction validarCPF(cpf) {\n  if (!cpf) return null;\n  const d = cpf.replace(/\\D/g, '');\n  if (d.length !== 11 || /^(\\d)\\1{10}$/.test(d)) return false;\n  const calc = (base, fatorInicial) => {\n    let soma = 0;\n    for (let i = 0; i < base.length; i++) soma += parseInt(base[i]) * (fatorInicial - i);\n    const resto = (soma * 10) % 11;\n    return resto === 10 ? 0 : resto;\n  };\n  const dv1 = calc(d.substring(0,9), 10);\n  const dv2 = calc(d.substring(0,9) + dv1, 11);\n  return d === d.substring(0,9) + dv1.toString() + dv2.toString();\n}\n\nfunction diasAtePartirDeHoje(dataStr) {\n  if (!dataStr) return null;\n  const [dia, mes, ano] = dataStr.split('/').map(Number);\n  if (!dia || !mes || !ano) return null;\n  const data = new Date(ano, mes - 1, dia);\n  const hoje = new Date();\n  hoje.setHours(0,0,0,0);\n  return Math.round((data - hoje) / (1000 * 60 * 60 * 24));\n}\n\nconst items = [];\nfor (const item of $input.all()) {\n  let raw = item.json.text || item.json.output || '';\n  raw = raw.replace(/```json/g, '').replace(/```/g, '').trim();\n  let parsed = {};\n  try {\n    parsed = JSON.parse(raw);\n  } catch (e) {\n    parsed = { erro_parse: true, texto_bruto: raw };\n  }\n\n  const alertas = [];\n\n  // --- Data de vencimento ---\n  if (!parsed.data_vencimento) {\n    alertas.push('Sem data de vencimento');\n  } else {\n    const dias = diasAtePartirDeHoje(parsed.data_vencimento);\n    if (dias !== null && Math.abs(dias) <= 2) {\n      alertas.push('Data muito próxima de hoje - conferir se não é chute da IA');\n    }\n  }\n\n  // --- Fornecedor ---\n  if (!parsed.nome_fornecedor) {\n    alertas.push('SEM FORNECEDOR - revisar PDF manualmente');\n  }\n  if (parsed.nome_fornecedor && parsed.empresa_pagadora &&\n      parsed.nome_fornecedor.trim().toLowerCase() === parsed.empresa_pagadora.trim().toLowerCase()) {\n    alertas.push('Fornecedor e pagador iguais - possível erro de extração');\n  }\n\n  // --- Valor ---\n  if (!parsed.valor) alertas.push('Sem valor');\n\n  // --- CNPJ/CPF do pagador ---\n  const doc = parsed.cnpj_pagador ? parsed.cnpj_pagador.replace(/\\D/g, '') : '';\n  if (!doc) {\n    alertas.push('Sem CNPJ/CPF do pagador');\n  } else if (doc.length === 14) {\n    if (validarCNPJ(doc) === false) alertas.push('CNPJ do pagador com dígito verificador inválido');\n  } else if (doc.length === 11) {\n    if (validarCPF(doc) === false) alertas.push('CPF do pagador com dígito verificador inválido');\n  } else {\n    alertas.push('CNPJ/CPF do pagador com quantidade de dígitos incorreta');\n  }\n\n  // --- Código de barras ---\n  if (!parsed.codigo_barras) {\n    alertas.push('Sem código de barras');\n  } else {\n    const cb = parsed.codigo_barras.replace(/\\D/g, '');\n    if (cb.length < 44 || cb.length > 48) alertas.push('Código de barras com tamanho incorreto (' + cb.length + ' dígitos)');\n  }\n\n  // --- PIX Copia e Cola ---\n  if (parsed.pix_copia_cola && !parsed.pix_copia_cola.startsWith('000201')) {\n    alertas.push('PIX Copia e Cola com formato suspeito - conferir');\n  }\n\n  items.push({\n    json: {\n      data_vencimento: parsed.data_vencimento || null,\n      nome_fornecedor: parsed.nome_fornecedor || null,\n      valor: formatarValorNumero(parsed.valor),\n      empresa_pagadora: parsed.empresa_pagadora || null,\n      cnpj_pagador: formatarDocumento(parsed.cnpj_pagador),\n      codigo_barras: parsed.codigo_barras || null,\n      pix_copia_cola: parsed.pix_copia_cola || null,\n      alertas: alertas.length > 0 ? alertas.join(' | ') : 'OK'\n    }\n  });\n}\nreturn items;"
+      },
+      "id": "a51046e9-ffbb-4708-b651-fbc1087fcbba",
+      "name": "Converter texto em JSON",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "value": "COLE_AQUI_O_ID_DA_SUA_PLANILHA",
+          "mode": "list",
+          "cachedResultName": "NascIA",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/COLE_AQUI_O_ID_DA_SUA_PLANILHA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Boletos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/COLE_AQUI_O_ID_DA_SUA_PLANILHA/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "data_vencimento": "={{ $json.data_vencimento }}",
+            "nome_fornecedor": "={{ $json.nome_fornecedor }}",
+            "valor": "={{ $json.valor }}",
+            "empresa_pagadora": "={{ $json.empresa_pagadora }}",
+            "cnpj_pagador": "={{ $json.cnpj_pagador }}",
+            "codigo_barras": "={{ $json.codigo_barras }}",
+            "alertas": "={{ $json.alertas }}",
+            "pix_copia_cola": "={{ $json.pix_copia_cola }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "data_vencimento",
+              "displayName": "data_vencimento",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "nome_fornecedor",
+              "displayName": "nome_fornecedor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "valor",
+              "displayName": "valor",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "empresa_pagadora",
+              "displayName": "empresa_pagadora",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "cnpj_pagador",
+              "displayName": "cnpj_pagador",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "codigo_barras",
+              "displayName": "codigo_barras",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "pix_copia_cola",
+              "displayName": "pix_copia_cola",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "alertas",
+              "displayName": "alertas",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "id": "ca4bfcbf-36ab-4974-bfc0-f7f7ffb424eb",
+      "name": "Salvar na planilha",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        128
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "f9w41Ubu8QDtdUCH",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "COLE_AQUI_O_ID_DA_SUA_PLANILHA",
+          "mode": "list",
+          "cachedResultName": "NascIA",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/COLE_AQUI_O_ID_DA_SUA_PLANILHA/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Boletos",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/COLE_AQUI_O_ID_DA_SUA_PLANILHA/edit#gid=0"
+        },
+        "options": {}
+      },
+      "id": "41df97a1-0515-493e-abe9-a1d75b9b4fe7",
+      "name": "Buscar dados dos boletos",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        -352,
+        448
+      ],
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "f9w41Ubu8QDtdUCH",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "modelName": "models/gemini-3.5-flash-lite",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "id": "f9334d5d-8781-44e7-bbc9-3869a8939259",
+      "name": "Modelo Google (chat)",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGoogleGemini",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        688
+      ],
+      "credentials": {
+        "googlePalmApi": {
+          "id": "PuBaZr9pegYpZlOG",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Você é um assistente financeiro que responde perguntas sobre boletos e contas a pagar, com base EXCLUSIVAMENTE nos dados fornecidos abaixo. Nunca invente informações que não estejam nos dados.\n\nDADOS DOS BOLETOS (lista em JSON):\n{{ JSON.stringify($json.data) }}\n\nCOMO RESPONDER:\n- Se perguntarem sobre um fornecedor específico (\"quanto devo para X\"): busque em \"nome_fornecedor\" primeiro. Só considere uma correspondência válida se o nome buscado estiver claramente contido no nome do fornecedor (não invente semelhanças). Se não achar correspondência clara, diga que não encontrou — não tente adivinhar um fornecedor parecido.\n- Se perguntarem sobre total ou soma (\"quanto devo no total\", \"total do mês\"): some os valores relevantes e informe o total.\n- Se perguntarem sobre vencimentos próximos (\"o que vence essa semana\", \"o que vence hoje\"): compare as datas de vencimento com a data de hoje e liste os boletos correspondentes.\n- Se perguntarem por uma data ou período específico: filtre pelos boletos com data de vencimento dentro desse período.\n- Se pedirem o código de barras ou PIX de um boleto específico: informe o campo correspondente, e avise que a pessoa deve conferir contra o boleto original antes de pagar.\n- Se a pergunta for ambígua (ex: mais de um fornecedor com nome parecido), liste as opções encontradas e peça para a pessoa especificar.\n- Se a informação pedida não existir nos dados, diga claramente que não encontrou, sem inventar valores.\n- Seja direto e objetivo nas respostas — evite textos longos. Responda como se estivesse conversando por chat.\n- Formate valores em reais (R$) e datas no formato DD/MM/AAAA ao responder, mesmo que os dados estejam em outro formato.\n\nPergunta do usuário:\n{{ $('Telegram Trigger').item.json.message.text }}"
+      },
+      "id": "afdfc07e-5b17-4a3d-a99d-9227b6f3a8cc",
+      "name": "Cadeia básica de LLM",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.4,
+      "position": [
+        96,
+        448
+      ]
+    },
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.5,
+      "position": [
+        -800,
+        448
+      ],
+      "id": "c69f73bb-f4b1-4565-97f9-395fb4d65a5c",
+      "name": "Telegram Trigger",
+      "webhookId": "85eb7c79-8d06-470e-8612-f675fb8e1906",
+      "credentials": {
+        "telegramApi": {
+          "id": "UfXnJtbFU4mNTjQp",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        448
+      ],
+      "id": "86b22e61-54ce-4ff1-8965-6f52babb9039",
+      "name": "Send a text message",
+      "webhookId": "628020b2-d428-4683-ae27-e70eae720c6f",
+      "credentials": {
+        "telegramApi": {
+          "id": "UfXnJtbFU4mNTjQp",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const staticData = $getWorkflowStaticData('global');\nconst updateId = $input.first().json.update_id;\n\nif (!staticData.processedUpdates) {\n  staticData.processedUpdates = [];\n}\n\nif (staticData.processedUpdates.includes(updateId)) {\n  // Já processamos esse update antes - ignora (retorna vazio, não segue adiante)\n  return [];\n}\n\n// Marca como processado e limita a lista aos últimos 100 (evita crescer infinito)\nstaticData.processedUpdates.push(updateId);\nif (staticData.processedUpdates.length > 100) {\n  staticData.processedUpdates.shift();\n}\n\nreturn $input.all();"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -576,
+        448
+      ],
+      "id": "3a7ad676-ae36-4ced-b990-b4c4f6eb6ee0",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        -128,
+        448
+      ],
+      "id": "1b6e7d45-b664-4bff-86a5-fe64833d83d3",
+      "name": "Aggregate"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Ao clicar em 'Executar fluxo de trabalho'": {
+      "main": [
+        [
+          {
+            "node": "Ler PDFs da pasta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ler PDFs da pasta": {
+      "main": [
+        [
+          {
+            "node": "Loop - um PDF por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop - um PDF por vez": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Extrair texto do PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair texto do PDF": {
+      "main": [
+        [
+          {
+            "node": "Extrair campos do boleto (IA)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Modelo Google (extração)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Extrair campos do boleto (IA)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extrair campos do boleto (IA)": {
+      "main": [
+        [
+          {
+            "node": "Converter texto em JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Converter texto em JSON": {
+      "main": [
+        [
+          {
+            "node": "Salvar na planilha",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Salvar na planilha": {
+      "main": [
+        [
+          {
+            "node": "Loop - um PDF por vez",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar dados dos boletos": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Modelo Google (chat)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Cadeia básica de LLM",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cadeia básica de LLM": {
+      "main": [
+        [
+          {
+            "node": "Send a text message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Buscar dados dos boletos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Cadeia básica de LLM",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "bb76312d-841d-4379-8e34-6785f06f3243",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "e477796d78b705cf49492daf51a2f5e89a58c8d49adefa7bc82cf31231afd93c"
+  },
+  "nodeGroups": [],
+  "id": "v5DAuaaKflC94UZS",
+  "tags": []
+}
