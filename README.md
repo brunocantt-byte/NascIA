@@ -30,6 +30,16 @@ O projeto resolve um problema comum de controle financeiro: boletos chegam em PD
 │  (armazenamento)      │───────►  (interface de chat)   │
 └─────────────────────┘        └──────────────────────┘
 ```
+## Demonstração
+
+### Fluxo completo no n8n
+![Fluxo n8n](./assets/screenshots/fluxo-n8n.png)
+
+### Consulta via Telegram
+![Chat Telegram](./assets/screenshots/chat-telegram.png)
+
+### Dados organizados no Google Sheets
+![Planilha](./assets/screenshots/planilha-sheets.png)
 
 ## Fluxo 1 — Extração de boletos
 
