@@ -1,3 +1,5 @@
+![NascIA](./assets/banner.png)
+
 # NascIA — Assistente de Boletos via IA
 
 Automação que extrai dados estruturados de boletos em PDF (data de vencimento, fornecedor, valor, CNPJ, código de barras, PIX Copia e Cola) usando IA, armazena tudo organizado no Google Sheets, e permite consultar essas informações por chat via Telegram.
@@ -81,20 +83,21 @@ O projeto resolve um problema comum de controle financeiro: boletos chegam em PD
 
 ### Passos
 1. Clone este repositório
-2. Importe o arquivo `boletos_workflow.json` no n8n (Menu → Import from File)
-3. Configure as credenciais:
+2. Copie `.env.example` para `.env` e preencha com suas credenciais reais (esse arquivo não é versionado)
+3. Importe o arquivo `n8n/boletos_workflow.json` no n8n (Menu → Import from File)
+4. Configure as credenciais:
    - Google Sheets/Drive (OAuth2)
    - Google Gemini (API Key)
    - Telegram (Bot Token)
-4. Ajuste o caminho da pasta de PDFs e o ID da planilha do Google Sheets nos respectivos nós
-5. Inicie o ngrok: `ngrok http 5678`
-6. Inicie o n8n com a URL do webhook configurada:
+5. Ajuste o caminho da pasta de PDFs e o ID da planilha do Google Sheets nos respectivos nós
+6. Inicie o ngrok: `ngrok http 5678`
+7. Inicie o n8n com a URL do webhook configurada:
    ```
    set N8N_RESTRICT_FILE_ACCESS_TO=<caminho da pasta de boletos>
    set WEBHOOK_URL=<url do ngrok>
    n8n start
    ```
-7. Publique o workflow no editor do n8n
+8. Publique o workflow no editor do n8n
 
 ## Estrutura da planilha
 
@@ -108,6 +111,31 @@ O projeto resolve um problema comum de controle financeiro: boletos chegam em PD
 | codigo_barras | Linha digitável |
 | pix_copia_cola | Código PIX, quando disponível |
 | alertas | Sinalizações automáticas de inconsistência |
+
+## Estrutura do repositório
+
+```
+nascia/
+├── assets/              # Banner e identidade visual
+│   └── banner.png
+├── n8n/                 # Workflow do n8n
+│   └── boletos_workflow.json
+├── docs/                # Documentação complementar
+├── scripts/             # Scripts auxiliares (quando houver)
+├── .env.example         # Modelo de variáveis de ambiente
+├── .gitignore
+├── CONTRIBUTING.md
+├── LICENSE
+└── README.md
+```
+
+## Contribuindo
+
+Sugestões e melhorias são bem-vindas — veja o [guia de contribuição](./CONTRIBUTING.md).
+
+## Licença
+
+Distribuído sob a licença MIT — veja o arquivo [LICENSE](./LICENSE) para mais detalhes.
 
 ## Status do projeto
 

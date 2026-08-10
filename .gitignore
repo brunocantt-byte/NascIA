@@ -1,3 +1,4 @@
 documentos/ 
 *.pdf 
-*.zip
+*.zip 
+.env
