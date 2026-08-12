@@ -284,13 +284,23 @@ O modelo nunca recebe apenas a pergunta isolada — o workflow primeiro recupera
 
 ## 📸 Demonstração
 
-<table>
-<tr>
-<td align="center"><b>Workflow no n8n</b><br/><img src="./assets/screenshots/fluxo-n8n.png" width="280"/></td>
-<td align="center"><b>Consulta via Telegram</b><br/><img src="./assets/screenshots/chat-telegram.png" width="280"/></td>
-<td align="center"><b>Dados no Google Sheets</b><br/><img src="./assets/screenshots/planilha-sheets.png" width="280"/></td>
-</tr>
-</table>
+## 📸 Demonstração
+
+### Infraestrutura
+
+![Infraestrutura do NascIA na Railway](./assets/screenshots/railway-nascia.png)
+
+### Automação
+
+![Workflow do NascIA no n8n](./assets/screenshots/fluxo-n8n.png)
+
+### Telegram
+
+![NascIA no Telegram](./assets/screenshots/chat-telegram.png)
+
+### Dados
+
+![Dados dos boletos no Google Sheets](./assets/screenshots/planilha-sheets.png)
 
 ---
 
