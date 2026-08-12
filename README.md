@@ -281,24 +281,23 @@ O modelo nunca recebe apenas a pergunta isolada — o workflow primeiro recupera
 | `alertas` | Sinalizações automáticas de inconsistência |
 
 ---
-
 ## 📸 Demonstração
 
 ### Infraestrutura
 
-![Infraestrutura do NascIA na Railway](./assets/screenshots/railway-nascia.png)
+![Infraestrutura do NascIA na Railway](./assets/railway-nascia.png)
 
 ### Automação
 
-![Workflow do NascIA no n8n](./assets/screenshots/fluxo-n8n.png)
+![Workflow do NascIA no n8n](./assets/fluxo-n8n.png)
 
 ### Telegram
 
-![NascIA no Telegram](./assets/screenshots/chat-telegram.png)
+![NascIA no Telegram](./assets/chat-telegram.png)
 
 ### Dados
 
-![Dados dos boletos no Google Sheets](./assets/screenshots/planilha-sheets.png)
+![Dados dos boletos no Google Sheets](./assets/planilha-sheets.png)
 
 ---
 
