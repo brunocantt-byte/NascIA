@@ -284,8 +284,6 @@ O modelo nunca recebe apenas a pergunta isolada — o workflow primeiro recupera
 
 ## 📸 Demonstração
 
-## 📸 Demonstração
-
 ### Infraestrutura
 
 ![Infraestrutura do NascIA na Railway](./assets/screenshots/railway-nascia.png)
