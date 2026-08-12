@@ -2,155 +2,51 @@
 
 # NascIA — Assistente de Boletos via IA
 
-Automação que extrai dados estruturados de boletos em PDF (data de vencimento, fornecedor, valor, CNPJ, código de barras, PIX Copia e Cola) usando IA, armazena tudo organizado no Google Sheets, e permite consultar essas informações por chat via Telegram.
+Automação para extração, organização e consulta de dados de boletos e documentos de cobrança brasileiros usando IA, n8n, Google Sheets e Telegram.
+
+O projeto foi desenvolvido para automatizar uma rotina comum de contas a pagar: receber documentos de cobrança, extrair informações estruturadas, validar campos críticos, armazenar os dados e permitir consultas em linguagem natural.
 
 ## Visão geral
 
-O projeto resolve um problema comum de controle financeiro: boletos chegam em PDF, espalhados, sem organização centralizada. O NascIA automatiza a extração desses dados e disponibiliza um assistente conversacional para consultas rápidas, tipo "quanto devo para o fornecedor X" ou "o que vence essa semana".
+O NascIA transforma documentos de cobrança em dados estruturados e consultáveis. A automação extrai informações como data de vencimento, fornecedor, valor, empresa pagadora, CNPJ/CPF, código de barras e PIX Copia e Cola, sinalizando campos ausentes ou suspeitos para revisão.
+
+A consulta dos dados pode ser feita diretamente pelo Telegram, permitindo perguntas como:
+
+- Quais boletos estão cadastrados?
+- Quais vencem nos próximos dias?
+- Qual é o maior boleto?
+- Quais contas estão associadas a determinado fornecedor?
+
+> **Demonstração:** os dados utilizados nas capturas e testes publicados no portfólio são fictícios ou anonimizados e não representam dados financeiros reais.
 
 ## Arquitetura
 
-```
-┌─────────────────┐
-│  Pasta de PDFs   │
-│  (boletos)       │
-└────────┬─────────┘
-         │
-         ▼
-┌─────────────────────┐
-│  n8n (orquestração)  │
-│  - Leitura de PDFs   │
-│  - Extração via IA   │
-│  - Validação de dados│
-└────────┬─────────────┘
-         │
-         ▼
-┌─────────────────────┐        ┌──────────────────────┐
-│  Google Sheets        │◄──────│  Telegram Bot          │
-│  (armazenamento)      │───────►  (interface de chat)   │
-└─────────────────────┘        └──────────────────────┘
-```
-## Demonstração
+```text
+                    ┌──────────────────────────┐
+                    │     Documentos / PDFs     │
+                    │  Boletos e cobranças      │
+                    └────────────┬─────────────┘
+                                 │
+                                 ▼
+                    ┌──────────────────────────┐
+                    │          n8n              │
+                    │      Hospedado na         │
+                    │         Railway           │
+                    │                          │
+                    │  • Leitura de PDFs       │
+                    │  • Extração via IA       │
+                    │  • Validação de dados    │
+                    │  • Orquestração          │
+                    └────────────┬─────────────┘
+                                 │
+                    ┌────────────┴────────────┐
+                    ▼                         ▼
+          ┌──────────────────┐      ┌──────────────────┐
+          │  Google Sheets   │      │   Telegram Bot   │
+          │ Armazenamento    │◄────►│ Interface de     │
+          │ estruturado      │      │ consulta         │
+          └──────────────────┘      └──────────────────┘
 
-### Fluxo completo no n8n
-![Fluxo n8n](./assets/screenshots/fluxo-n8n.png)
-
-### Consulta via Telegram
-![Chat Telegram](./assets/screenshots/chat-telegram.png)
-
-### Dados organizados no Google Sheets
-![Planilha](./assets/screenshots/planilha-sheets.png)
-
-## Fluxo 1 — Extração de boletos
-
-1. **Trigger manual** inicia o processamento
-2. **Leitura da pasta** — varre todos os PDFs de uma pasta local
-3. **Loop** — processa um PDF por vez
-4. **Extração de texto** do PDF
-5. **IA (Google Gemini)** extrai os campos estruturados em JSON:
-   - Data de vencimento
-   - Nome do fornecedor (cedente/beneficiário)
-   - Valor
-   - Empresa pagadora
-   - CNPJ/CPF do pagador
-   - Código de barras / linha digitável
-   - PIX Copia e Cola (quando disponível)
-6. **Validação automática** — checagem de dígito verificador de CNPJ/CPF (algoritmo oficial), consistência de datas, tamanho do código de barras, e sinalização de campos ausentes ou suspeitos
-7. **Gravação no Google Sheets** — cada boleto processado vira uma linha, com uma coluna de alertas para revisão manual quando necessário
-
-## Fluxo 2 — Consulta via chat
-
-1. **Telegram Trigger** recebe a pergunta do usuário
-2. **Google Sheets** busca todos os dados registrados
-3. **Agregação** dos dados em um único contexto
-4. **IA (Google Gemini)** responde com base exclusivamente nos dados reais, cobrindo perguntas sobre fornecedor específico, totais, vencimentos próximos, período, código de barras e PIX
-5. **Telegram** envia a resposta de volta ao usuário
-
-## Tecnologias
-
-- **n8n** — orquestração do fluxo (self-hosted)
-- **Google Gemini** (via API) — extração e interpretação de linguagem natural
-- **Google Sheets API** — armazenamento estruturado
-- **Telegram Bot API** — interface conversacional
-- **ngrok** — túnel HTTPS para desenvolvimento local
-- **JavaScript** (nós Code do n8n) — parsing, formatação e validação de dados
-
-## Decisões técnicas e cuidados
-
-- **Validação matemática de CNPJ/CPF**: em vez de confiar cegamente na extração da IA, o fluxo recalcula o dígito verificador para detectar erros de leitura.
-- **Sem confiança cega em dados críticos**: código de barras e PIX Copia e Cola são sinalizados para conferência manual antes de qualquer pagamento — a IA nunca decide um pagamento sozinha.
-- **Prevenção de alucinação de datas**: regras explícitas no prompt impedem a IA de usar a data atual como vencimento quando o dado não está claro no documento.
-- **Agregação antes da consulta**: os dados são agrupados em um único contexto antes de chegar ao modelo de linguagem, evitando respostas fragmentadas ou inconsistentes.
-- **Deduplicação de eventos do Telegram**: proteção contra reprocessamento de mensagens em caso de reenvio pela API do Telegram.
-
-## Como rodar localmente
-
-### Pré-requisitos
-- n8n instalado (`npm install n8n -g`)
-- Conta Google Cloud com Sheets API e Drive API ativadas
-- Bot do Telegram criado via [@BotFather](https://t.me/BotFather)
-- [ngrok](https://ngrok.com) para expor um endpoint HTTPS (necessário para o Telegram Trigger)
-
-### Passos
-1. Clone este repositório
-2. Copie `.env.example` para `.env` e preencha com suas credenciais reais (esse arquivo não é versionado)
-3. Importe o arquivo `n8n/boletos_workflow.json` no n8n (Menu → Import from File)
-4. Configure as credenciais:
-   - Google Sheets/Drive (OAuth2)
-   - Google Gemini (API Key)
-   - Telegram (Bot Token)
-5. Ajuste o caminho da pasta de PDFs e o ID da planilha do Google Sheets nos respectivos nós
-6. Inicie o ngrok: `ngrok http 5678`
-7. Inicie o n8n com a URL do webhook configurada:
-   ```
-   set N8N_RESTRICT_FILE_ACCESS_TO=<caminho da pasta de boletos>
-   set WEBHOOK_URL=<url do ngrok>
-   n8n start
-   ```
-8. Publique o workflow no editor do n8n
-
-## Estrutura da planilha
-
-| Coluna | Descrição |
-|---|---|
-| data_vencimento | Data de vencimento do boleto |
-| nome_fornecedor | Cedente/beneficiário |
-| valor | Valor numérico (permite soma direta) |
-| empresa_pagadora | Sacado/pagador |
-| cnpj_pagador | CNPJ ou CPF formatado |
-| codigo_barras | Linha digitável |
-| pix_copia_cola | Código PIX, quando disponível |
-| alertas | Sinalizações automáticas de inconsistência |
-
-## Estrutura do repositório
-
-```
-nascia/
-├── assets/              # Banner e identidade visual
-│   └── banner.png
-├── n8n/                 # Workflow do n8n
-│   └── boletos_workflow.json
-├── docs/                # Documentação complementar
-├── scripts/             # Scripts auxiliares (quando houver)
-├── .env.example         # Modelo de variáveis de ambiente
-├── .gitignore
-├── CONTRIBUTING.md
-├── LICENSE
-└── README.md
-```
-
-## Contribuindo
-
-Sugestões e melhorias são bem-vindas — veja o [guia de contribuição](./CONTRIBUTING.md).
-
-## Licença
-
-Distribuído sob a licença MIT — veja o arquivo [LICENSE](./LICENSE) para mais detalhes.
-
-## Status do projeto
-
-Projeto em desenvolvimento contínuo como parte de portfólio de estudos em automação com IA (Alura).
-
-## Autor
-
-Bruno Cantanhede — [@brunocantt-byte](https://github.com/brunocantt-byte)
+                 Infraestrutura em produção
+                        Railway + PostgreSQL
+                        + volume persistente
